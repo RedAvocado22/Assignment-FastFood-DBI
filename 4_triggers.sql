@@ -1,44 +1,28 @@
 CREATE OR ALTER TRIGGER trg_UpdateCustomerRank
-ON Bill
+ON [Order]
 AFTER INSERT, UPDATE
 AS
 BEGIN
-    -- Create a temporary table to hold the affected CustomerIDs and their total spent
-    CREATE TABLE #TempCustomerTotal (
-        CustomerID INT,
-        TotalSpent DECIMAL(10, 2)
+    SET NOCOUNT ON;
+
+    -- Calculate total spent for affected customers and update ranks
+    WITH CustomerTotal AS (
+        SELECT o.CustomerID, SUM(od.SalePrice) AS TotalSpent
+        FROM [Order] o
+        JOIN OrderDetail od ON o.OrderID = od.OrderID
+        WHERE o.CustomerID IN (SELECT DISTINCT CustomerID FROM inserted)
+        GROUP BY o.CustomerID
     )
-
-    -- Insert the affected CustomerIDs and calculate their total spent across all bills
-    INSERT INTO #TempCustomerTotal (CustomerID, TotalSpent)
-    SELECT b.CustomerID, SUM(b.Total)
-    FROM Bill b
-    WHERE b.CustomerID IN (SELECT DISTINCT CustomerID FROM inserted)
-    GROUP BY b.CustomerID
-
-    -- Update the customer's rank based on total spent
     UPDATE c
     SET Rank = 
         CASE
-            WHEN t.TotalSpent >= 500 THEN 'Diamond'
-            WHEN t.TotalSpent >= 250 THEN 'Platinum'
-            WHEN t.TotalSpent >= 100 THEN 'Gold'
-            WHEN t.TotalSpent >= 50 THEN 'Silver'
-            WHEN t.TotalSpent >= 30 THEN 'Bronze'
+            WHEN ct.TotalSpent >= 500 THEN 'Diamond'
+            WHEN ct.TotalSpent >= 250 THEN 'Platinum'
+            WHEN ct.TotalSpent >= 100 THEN 'Gold'
+            WHEN ct.TotalSpent >= 50 THEN 'Silver'
+            WHEN ct.TotalSpent >= 30 THEN 'Bronze'
             ELSE 'Regular'
         END
     FROM Customer c
-    INNER JOIN #TempCustomerTotal t ON c.CustomerID = t.CustomerID
-    WHERE c.Rank IS NULL OR c.Rank <> 
-        CASE
-            WHEN t.TotalSpent >= 500 THEN 'Diamond'
-            WHEN t.TotalSpent >= 250 THEN 'Platinum'
-            WHEN t.TotalSpent >= 100 THEN 'Gold'
-            WHEN t.TotalSpent >= 50 THEN 'Silver'
-            WHEN t.TotalSpent >= 30 THEN 'Bronze'
-            ELSE 'Regular'
-        END
-
-    -- Drop the temporary table
-    DROP TABLE #TempCustomerTotal
-END
+    JOIN CustomerTotal ct ON c.CustomerID = ct.CustomerID;
+END;
