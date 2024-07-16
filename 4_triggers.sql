@@ -5,7 +5,6 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Calculate total spent for affected customers and update ranks
     WITH CustomerTotal AS (
         SELECT o.CustomerID, SUM(od.SalePrice) AS TotalSpent
         FROM [Order] o
